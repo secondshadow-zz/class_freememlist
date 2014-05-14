@@ -114,6 +114,34 @@ int performAllocation(LinkedList *freeList, LinkedList *usedList, long requested
     return retval;
 }
 
+int searchForStartAddress(void *data, void *param) {
+    long baseBlockAddress = *(long *)param;
+    pageDef *page=(pageDef *)data;
+    return page->start == baseBlockAddress;
+}
+
+int performFree(LinkedList *freeList, LinkedList *usedList, long blockBaseAddress) {
+    int retval = 1;
+    pageDef *usedPage;
+    pageDef *newPage;
+    LinkedListEntry *entry = ll_search(usedList, &blockBaseAddress, searchForStartAddress);
+    
+    if(entry!=NULL) {
+        usedPage=(pageDef *)entry->data;
+        newPage=malloc(sizeof(*newPage));
+        newPage->start=usedPage->start;
+        newPage->end=usedPage->end;
+        ll_append(freeList, newPage);
+        
+        
+        ll_remove(entry,pageCleanupFunc);
+    }else {
+        retval = 0;
+    }
+    
+    return retval;
+}
+
 void executeCommand(LinkedList **freeList,
                     LinkedList **usedList,
                     commandStruct *command,
@@ -131,13 +159,13 @@ void executeCommand(LinkedList **freeList,
                 printf("error, no contiguous available\n\n");
             }
             break;
-//        case FREE:
-//            if(performFree(*freeList,usedList,numericArg)) {
-//                printf("ok\n\n");
-//            } else {
-//                printf("error, not an allocated block\n\n");
-//            }
-//            break;
+        case FREE:
+            if(performFree(*freeList,*usedList,numericArg)) {
+                printf("ok\n\n");
+            } else {
+                printf("error, not an allocated block\n\n");
+            }
+            break;
         case PRINT:
             printData(*freeList,*usedList);
             break;
