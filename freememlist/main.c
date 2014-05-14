@@ -120,21 +120,53 @@ int searchForStartAddress(void *data, void *param) {
     return page->start == baseBlockAddress;
 }
 
+int searchForEndAddress(void *data, void *param) {
+    long endBlockAddress = *(long *) param;
+    pageDef *page=(pageDef *)data;
+    return page->end == endBlockAddress;
+}
+
 int performFree(LinkedList *freeList, LinkedList *usedList, long blockBaseAddress) {
     int retval = 1;
+    long previousAdjacentAddress;
+    long nextAdjacentAddress;
     pageDef *usedPage;
     pageDef *newPage;
-    LinkedListEntry *entry = ll_search(usedList, &blockBaseAddress, searchForStartAddress);
+    pageDef *previousAdjacentPage;
+    pageDef *nextAdjacentPage;
+    LinkedListEntry *previousAdjacentEntry;
+    LinkedListEntry *nextAdjacentEntry;
+    LinkedListEntry *entryToDeallocate = ll_search(usedList, &blockBaseAddress, searchForStartAddress);
     
-    if(entry!=NULL) {
-        usedPage=(pageDef *)entry->data;
-        newPage=malloc(sizeof(*newPage));
-        newPage->start=usedPage->start;
-        newPage->end=usedPage->end;
-        ll_append(freeList, newPage);
+    if(entryToDeallocate!=NULL) {
+        usedPage=(pageDef *)entryToDeallocate->data;
+
+        previousAdjacentAddress=blockBaseAddress-1;
+        previousAdjacentEntry=ll_search(freeList, &previousAdjacentAddress, searchForEndAddress);
         
+        if(previousAdjacentEntry) {
+            previousAdjacentPage=(pageDef *) previousAdjacentEntry->data;
+            previousAdjacentPage->end=usedPage->end;
+            usedPage=previousAdjacentPage;
+        }
         
-        ll_remove(entry,pageCleanupFunc);
+        nextAdjacentAddress=usedPage->end+1;
+        nextAdjacentEntry = ll_search(freeList, &nextAdjacentAddress,searchForStartAddress);
+        
+        if(nextAdjacentEntry) {
+            nextAdjacentPage=(pageDef *)nextAdjacentEntry->data;
+            usedPage->end = nextAdjacentPage->end;
+            ll_remove(nextAdjacentEntry, pageCleanupFunc);
+        }
+        
+        if(previousAdjacentEntry==NULL) {
+            newPage=malloc(sizeof(*newPage));
+            newPage->start=usedPage->start;
+            newPage->end=usedPage->end;
+            ll_append(freeList, newPage);
+        }
+        
+        ll_remove(entryToDeallocate,pageCleanupFunc);
     }else {
         retval = 0;
     }
