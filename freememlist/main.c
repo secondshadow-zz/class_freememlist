@@ -219,10 +219,9 @@ int main(int argc, const char * argv[])
     
     while((EOF!=prompt(command))) {
         for(i=0;
-            commands[i].id!=0 && strcmp(command,(currentCommand=&commands[i])->command)!=0;
+            (currentCommand=&commands[i])->id!=0 && strcmp(command,commands[i].command)!=0;
             i++) {
-            ;
-            printf("DEBUG: %s\n", currentCommand->command);
+                //Empty loop
         }
         if(currentCommand!=NULL){
             if(currentCommand->requiresNumericSecondArg) {
