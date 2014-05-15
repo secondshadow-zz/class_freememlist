@@ -45,8 +45,37 @@ void *pageCleanupFunc(void *page) {
     return NULL;
 }
 
+int sortComparator(LinkedListEntry *context[],void *newData) {
+    int retval = LL_SORT_DO_NOT_INSERT_YET;
+    LinkedListEntry *nextentry = context[LL_SORT_CONTEXT_NEXT];
+    LinkedListEntry *currententry = context[LL_SORT_CONTEXT_CURRENT];
+    
+    pageDef *currentPage = currententry->data;
+    pageDef *nextPage = (nextentry == NULL?NULL:nextentry->data);
+    pageDef *newPage = newData;
+    
+    
+    if(newPage->start<currentPage->start) {
+        retval = LL_SORT_INSERT_BEFORE_CURRENT;
+    } else if(newPage->start > currentPage->start) {
+        if(nextPage==NULL || newPage->start < nextPage->start) {
+            retval = LL_SORT_INSERT_AFTER_CURRENT;
+        }
+    }
+    
+//    if((int) newData < (int) currententry->data) {
+//        if(previousentry==NULL || (int) newData > (int) previousentry->data) {
+//            return LL_SORT_INSERT_BEFORE_CURRENT;
+//        }
+//    } else if((int) newData > (int) currententry->data) {
+//        return LL_SORT_INSERT_AFTER_CURRENT;
+//    }
+    
+    return retval;
+}
+
+
 void initializeFml(LinkedList **freeList, LinkedList **usedList,int blockCount) {
-    int i;
     pageDef *page;
     if(*freeList!=NULL) {
         ll_destroy(*freeList, pageCleanupFunc);
@@ -57,7 +86,9 @@ void initializeFml(LinkedList **freeList, LinkedList **usedList,int blockCount) 
     }
     
     *freeList = ll_create();
+    ll_assignSortFunction(*freeList, sortComparator);
     *usedList = ll_create();
+    ll_assignSortFunction(*usedList, sortComparator);
     
     page = malloc(sizeof(*page));
     page->start=0;

@@ -63,7 +63,7 @@ int ll_unlink(LinkedListEntry *entryToUnlink) {
 
 static LinkedListEntry * ll_allocEntry(void *data) {
     LinkedListEntry *newNode;
-
+    
     newNode= calloc(1,sizeof(*newNode));
     newNode->data=data;
     return newNode;
@@ -81,12 +81,12 @@ LinkedList *ll_create() {
     return calloc(1,sizeof(LinkedList));
 }
 
-LinkedListEntry * ll_search(LinkedList *list, void * searchParam, int (searchFunc)(void *, void *)) {
+LinkedListEntry * ll_search(LinkedList *list, void * searchParam, int (sortCompareFunc)(void *, void *)) {
     LinkedListEntry *entry=NULL;
     
-    if(list!=NULL && searchFunc!=NULL){
+    if(list!=NULL && sortCompareFunc!=NULL){
         for(entry=list->first;
-            entry!=NULL && !searchFunc(entry->data, searchParam);
+            entry!=NULL && !sortCompareFunc(entry->data, searchParam);
             entry=entry->next);
     }
     
@@ -96,13 +96,19 @@ LinkedListEntry * ll_search(LinkedList *list, void * searchParam, int (searchFun
 LinkedListEntry *ll_append(LinkedList *list,void *data) {
     LinkedListEntry *retval=NULL;
     if(list!=NULL){
+        
         if(list->first==NULL) {
             retval=list->first=list->last=ll_allocEntry(data);
             retval->owner=list;
             list->nodeCount++;
         } else {
-            retval = ll_insert(list->last, LL_INSERT_AFTER, data);
+            if(list->sortCompareFunc!=NULL){
+                retval = ll_insert(list,data);
+            }else{
+                retval = ll_insertAfter(list->last, data);
+            }
         }
+        
     }
     return retval;
 }
@@ -115,7 +121,11 @@ LinkedListEntry *ll_prepend(LinkedList *list,void *data) {
             retval->owner=list;
             list->nodeCount++;
         } else {
-            retval = ll_insert(list->first, LL_INSERT_BEFORE, data);
+            if(list->sortCompareFunc!=NULL){
+                retval = ll_insert(list,data);
+            }else{
+                retval = ll_insertBefore(list->first, data);
+            }
         }
     }
     return retval;
@@ -124,12 +134,16 @@ LinkedListEntry *ll_prepend(LinkedList *list,void *data) {
 LinkedListEntry *ll_insertBefore(LinkedListEntry *entry, void *data) {
     LinkedListEntry *newNode=NULL;
     if(entry!=NULL) {
-        newNode=ll_allocEntry(data);
-        if(entry==entry->owner->first) {
-            entry->owner->first=newNode;
+        if(entry->owner->sortCompareFunc!=NULL){
+            newNode = ll_insert(entry->owner,data);
+        }else{
+            newNode=ll_allocEntry(data);
+            if(entry==entry->owner->first) {
+                entry->owner->first=newNode;
+            }
+            
+            ll_link(entry->owner,newNode, entry->previous, entry);
         }
-        
-        ll_link(entry->owner,newNode, entry->previous, entry);
     }
     return newNode;
 }
@@ -139,21 +153,25 @@ LinkedListEntry *ll_insertAfter(LinkedListEntry *entry, void *data) {
     
     
     if(entry!=NULL) {
-        newNode=ll_allocEntry(data);
-        
-        if(entry==entry->owner->last) {
-            entry->owner->last=newNode;
+        if(entry->owner->sortCompareFunc!=NULL){
+            newNode = ll_insert(entry->owner,data);
+        }else{
+            newNode=ll_allocEntry(data);
+            
+            if(entry==entry->owner->last) {
+                entry->owner->last=newNode;
+            }
+            
+            ll_link(entry->owner,newNode,entry,entry->next);
         }
-        
-        ll_link(entry->owner,newNode,entry,entry->next);
     }
     
     return newNode;
 }
 
-LinkedListEntry *ll_insert(LinkedListEntry *entry, int insertMode, void *data) {
-    return insertMode == LL_INSERT_BEFORE?ll_insertBefore(entry, data) : ll_insertAfter(entry, data);
-}
+//LinkedListEntry *ll_insert(LinkedListEntry *entry, int insertMode, void *data) {
+//    return insertMode == LL_INSERT_BEFORE?ll_insertBefore(entry, data) : ll_insertAfter(entry, data);
+//}
 
 void * ll_remove(LinkedListEntry *entry, void *(cleanupFunc)(void *)) {
     void *retval = NULL;
@@ -258,6 +276,7 @@ LinkedList * ll_copyAdvanced(LinkedList *list,
             deepCopyFunc=defaultDeepCopyFunc;
         }
         retval=ll_create();
+        retval->sortCompareFunc=list->sortCompareFunc;
         for(entry=list->first;entry!=NULL;entry=entry->next) {
             if(filterFunc==NULL || !filterFunc(entry->data,filterParam)) {
                 ll_append(retval,deepCopyFunc(entry->data,deepCopyFuncParam));
@@ -268,19 +287,72 @@ LinkedList * ll_copyAdvanced(LinkedList *list,
     return retval;
 }
 
-LinkedList *ll_searchFindAll(LinkedList *list, void * searchParam, int (searchFunc)(void *,void *)) {
+LinkedList *ll_searchFindAll(LinkedList *list, void * searchParam, int (sortCompareFunc)(void *,void *)) {
     LinkedList *retval=NULL;
     LinkedListEntry *entry;
-
+    
     int sfRes=0;
-    if(list!=NULL && searchFunc!=NULL) {
+    if(list!=NULL && sortCompareFunc!=NULL) {
         retval = ll_create();
         for(entry=list->first;entry!=NULL && sfRes!=-1;entry=entry->next) {
-            if((sfRes=searchFunc(entry->data,searchParam))) {
+            if((sfRes=sortCompareFunc(entry->data,searchParam))) {
                 ll_append(retval, entry);
             }
         }
     }
     
+    return retval;
+}
+
+int ll_assignSortFunction(LinkedList *list, int sortComparator(LinkedListEntry *[], void *)) {
+    int retval = LL_SUCCESS;
+    if(list!=NULL) {
+        if(list->nodeCount>1) {
+            retval = LL_RESORT_NOT_YET_SUPPORTED;
+        }
+        else {
+            list->sortCompareFunc=sortComparator;
+        }
+    } else {
+        retval = LL_NULL_LIST;
+    }
+    return retval;
+}
+LinkedListEntry *ll_insert(LinkedList *list, void *data) {
+    LinkedListEntry *retval=NULL;
+    LinkedListEntry *current;
+    LinkedListEntry *context[3];
+    int sortCompareReturn = LL_SORT_DO_NOT_INSERT_YET;
+    if(list->sortCompareFunc!=NULL) {
+        if(list->first==NULL) {
+            retval = ll_append(list,data);
+        }
+        
+        for(current=list->first;current!=NULL && retval == NULL;current=current->next ){
+            context[0]=current->previous;
+            context[1]=current;
+            context[2]=current->next;
+            sortCompareReturn = list->sortCompareFunc(context, data);
+            if(sortCompareReturn!=LL_SORT_DO_NOT_INSERT_YET){
+                retval = ll_allocEntry(data);
+                
+                if(sortCompareReturn == LL_SORT_INSERT_BEFORE_CURRENT) {
+                    if(current==list->first){
+                        list->first=retval;
+                    }
+                    
+                    ll_link(list,retval,current->previous,current);
+                    
+                } else { /*insert after*/
+                    if(current == list->last) {
+                        list->last=retval;
+                    }
+                    ll_link(list,retval,current,current->next);
+                }
+            }
+        }
+    } else {
+        retval = ll_prepend(list, data);
+    }
     return retval;
 }

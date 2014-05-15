@@ -9,13 +9,22 @@
 #ifndef llist_llist_h
 #define llist_llist_h
 
-#define LL_INSERT_AFTER 0
-#define LL_INSERT_BEFORE 1
+#define LL_SORT_INSERT_BEFORE_CURRENT 0
+#define LL_SORT_INSERT_AFTER_CURRENT 1
+#define LL_SORT_DO_NOT_INSERT_YET 2
+
+#define LL_SORT_CONTEXT_PREVIOUS 0
+#define LL_SORT_CONTEXT_CURRENT 1
+#define LL_SORT_CONTEXT_NEXT 2
+
 
 #define LL_SUCCESS 0
 #define LL_ERR_DIFFERENT_LISTS 1
 #define LL_ERR_ENTRY_ALREADY_OWNED 2
 #define LL_ERR_BAD_ENTRY 3
+#define LL_NULL_LIST 4
+#define LL_RESORT_NOT_YET_SUPPORTED 999
+
 
 typedef struct LinkedListEntry LinkedListEntry;
 typedef struct LinkedList LinkedList;
@@ -31,6 +40,7 @@ struct LinkedList {
     LinkedListEntry *first;
     LinkedListEntry *last;
     long nodeCount;
+    int (*sortCompareFunc)(LinkedListEntry *[], void *);
 };
 
 LinkedList *ll_create();
@@ -69,9 +79,13 @@ LinkedList *ll_searchFindAll(LinkedList *list, void * searchParam, int (searchFu
 
 LinkedListEntry *ll_append(LinkedList *list,void *data);
 LinkedListEntry *ll_prepend(LinkedList *list,void *data);
-LinkedListEntry *ll_insert(LinkedListEntry *entry, int insertMode, void *data);
+//LinkedListEntry *ll_insert(LinkedListEntry *entry, int insertMode, void *data);
 LinkedListEntry *ll_insertBefore(LinkedListEntry *entry, void *data);
 LinkedListEntry *ll_insertAfter(LinkedListEntry *entry, void *data);
+
+int ll_assignSortFunction(LinkedList *list, int sortComparator(LinkedListEntry *[],void *));
+LinkedListEntry *ll_insert(LinkedList *list, void *data);
+
 
 /*
  * cleanupFunc is optional; if supplied it will be called against the
