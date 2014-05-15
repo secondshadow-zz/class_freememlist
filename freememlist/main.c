@@ -122,7 +122,7 @@ int isFreeBlockBigEnough(void *data, void *param) {
     return (page->end-page->start+1) >= requestedSize;
 }
 
-int performAllocation(LinkedList *freeList, LinkedList *usedList, long requestedSize, int *acquiredAddress) {
+int performAllocation(LinkedList *freeList, LinkedList *usedList, long requestedSize, long *acquiredAddress) {
     int retval = 1;
     pageDef *acquiredpage;
     pageDef *newPage;
@@ -139,6 +139,7 @@ int performAllocation(LinkedList *freeList, LinkedList *usedList, long requested
         if(acquiredpage->start > acquiredpage->end) {
             ll_remove(entry, pageCleanupFunc);
         }
+        *acquiredAddress=newPage->start;
     } else {
         retval = 0;
     }
@@ -209,7 +210,7 @@ void executeCommand(LinkedList **freeList,
                     LinkedList **usedList,
                     commandStruct *command,
                     int numericArg){
-    int acquiredAddress=0;
+    long acquiredAddress=0;
     switch(command->id) {
         case INIT:
             initializeFml(freeList, usedList, numericArg);
