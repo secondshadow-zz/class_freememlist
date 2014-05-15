@@ -9,6 +9,12 @@
 #ifndef llist_llist_h
 #define llist_llist_h
 
+#ifdef LL_STATIC_ALLOCATION
+int initializeFreeList();
+#else
+#define initializeFreeList() LL_SUCCESS
+#endif
+
 #define LL_SORT_INSERT_BEFORE_CURRENT 0
 #define LL_SORT_INSERT_AFTER_CURRENT 1
 #define LL_SORT_DO_NOT_INSERT_YET 2
@@ -23,6 +29,8 @@
 #define LL_ERR_ENTRY_ALREADY_OWNED 2
 #define LL_ERR_BAD_ENTRY 3
 #define LL_NULL_LIST 4
+#define LL_ERR_FREELISTS_INIT_FAILED 5
+#define LL_ERR_ENTRY_NOT_OWNED 6
 #define LL_RESORT_NOT_YET_SUPPORTED 999
 
 

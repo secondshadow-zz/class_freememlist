@@ -12,7 +12,48 @@
 
 
 
-int ll_link(LinkedList *list, LinkedListEntry *newentry, LinkedListEntry *previousEntry, LinkedListEntry *nextEntry) {
+static int ll_link(LinkedList *list, LinkedListEntry *newentry, LinkedListEntry *previousEntry, LinkedListEntry *nextEntry);
+static int ll_unlink(LinkedListEntry *entryToUnlink);
+
+
+
+#ifdef LL_STATIC_ALLOCATION
+
+#ifndef NUM_USER_ENTRIES
+#define NUM_USER_ENTRIES 150
+#endif
+
+#define NUM_LISTS 10
+#define NUM_ENTRIES NUM_USER_ENTRIES + NUM_LISTS
+
+LinkedList freeLists={0};
+LinkedList freeEntries={0};
+LinkedList lists[10]={0};
+
+LinkedListEntry entries[NUM_ENTRIES]={0};
+
+int initializeFreeList() {
+    int i;
+    int retval=LL_SUCCESS;
+    
+    for(i=0;i<NUM_ENTRIES && retval == LL_SUCCESS;i++) {
+        retval = ll_link(&freeEntries,&entries[i],(i>0?&entries[i-1]:NULL),NULL);
+    }
+    
+    freeEntries.first=&entries[0];
+    freeEntries.last=&entries[NUM_ENTRIES-1];
+    
+    for(i=0;i<NUM_LISTS;i++) {
+        retval = (ll_append(&freeLists,&lists[i])!=NULL ? LL_SUCCESS : LL_ERR_FREELISTS_INIT_FAILED);
+    }
+    
+    return retval;
+}
+#else
+
+#endif
+
+static int ll_link(LinkedList *list, LinkedListEntry *newentry, LinkedListEntry *previousEntry, LinkedListEntry *nextEntry) {
     int retval=LL_SUCCESS;
     if(newentry == NULL) {
         retval = LL_ERR_BAD_ENTRY;
@@ -46,39 +87,76 @@ int ll_link(LinkedList *list, LinkedListEntry *newentry, LinkedListEntry *previo
     return retval;
 }
 
-int ll_unlink(LinkedListEntry *entryToUnlink) {
+static int ll_unlink(LinkedListEntry *entryToUnlink) {
     int retval=LL_SUCCESS;
-    entryToUnlink->owner=NULL;
-    if(entryToUnlink->previous !=NULL) {
-        entryToUnlink->previous->next=entryToUnlink->next;
+    if(entryToUnlink!=NULL) {
+        if(entryToUnlink->owner!=NULL){
+            entryToUnlink->owner->nodeCount--;
+            entryToUnlink->owner=NULL;
+            if(entryToUnlink->previous !=NULL) {
+                entryToUnlink->previous->next=entryToUnlink->next;
+            }
+            
+            if(entryToUnlink->next!=NULL) {
+                entryToUnlink->next->previous=entryToUnlink->previous;
+            }
+            
+            entryToUnlink->next=entryToUnlink->previous=NULL;
+            
+        } else {
+            retval=LL_ERR_ENTRY_NOT_OWNED;
+        }
+    } else {
+        retval = LL_ERR_BAD_ENTRY;
     }
-    
-    if(entryToUnlink->next!=NULL) {
-        entryToUnlink->next->previous=entryToUnlink->previous;
-    }
-    
-    entryToUnlink->next=entryToUnlink->previous=NULL;
     return retval;
 }
 
 static LinkedListEntry * ll_allocEntry(void *data) {
     LinkedListEntry *newNode;
-    
+#ifdef LL_STATIC_ALLOCATION
+    if(freeEntries.first!=NULL) {
+        newNode = freeEntries.first;
+        if((freeEntries.first=freeEntries.first->next)==NULL) {
+            freeEntries.last=NULL;
+        }
+        ll_unlink(newNode);
+    }
+#else
     newNode= calloc(1,sizeof(*newNode));
-    newNode->data=data;
+
+#endif
+    if(newNode!=NULL){
+        newNode->data=data;
+    }
     return newNode;
 }
 
 static void ll_releaseEntry(LinkedListEntry *entry) {
+#ifdef LL_STATIC_ALLOCATION
+    ll_link(&freeEntries, entry, NULL, freeEntries.first);
+    if(freeEntries.last==NULL) {
+        freeEntries.last=entry;
+    }
+#else
     free(entry);
+#endif
 }
 
 static void ll_releaseList(LinkedList *list) {
+#ifdef LL_STATIC_ALLOCATION
+    ll_append(&freeLists, list);
+#else
     free(list);
+#endif
 }
 
 LinkedList *ll_create() {
+#ifdef LL_STATIC_ALLOCATION
+    return ll_pop(&freeLists);
+#else
     return calloc(1,sizeof(LinkedList));
+#endif
 }
 
 LinkedListEntry * ll_search(LinkedList *list, void * searchParam, int (sortCompareFunc)(void *, void *)) {
@@ -210,6 +288,7 @@ void ll_clear(LinkedList *list, void *(cleanupFunc)(void *)) {
             if(cleanupFunc!=NULL) {
                 cleanupFunc(toDelete->data);
             }
+            ll_unlink(toDelete);
             ll_releaseEntry(toDelete);
         }
         list->first=list->last=NULL;
