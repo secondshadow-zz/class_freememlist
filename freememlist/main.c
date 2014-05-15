@@ -218,7 +218,7 @@ void executeCommand(LinkedList **freeList,
             break;
         case ALLOCATE:
             if(performAllocation(*freeList,*usedList,numericArg,&acquiredAddress)){
-                printf("your address is %i\n\n",acquiredAddress);
+                printf("your address is %li\n\n",acquiredAddress);
             } else {
                 printf("error, no contiguous available\n\n");
             }
